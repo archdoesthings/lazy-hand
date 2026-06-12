@@ -183,7 +183,7 @@ def run():
                         gestureName    = "ENABLED" if gestureEnabled else "DISABLED"
                     
                         frame = drawHud(frame, gestureName, gestureEnabled, screenPos)
-                        cv2.imshow("Hand Gesture Control  —  press Q to quit", frame)
+                        cv2.imshow("Hand Gesture Control  -  press Q to quit", frame)
                         cv2.waitKey(1)
                         
                         time.sleep(1.0) # 1 second hard debounce
