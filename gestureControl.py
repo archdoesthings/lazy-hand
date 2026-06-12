@@ -13,38 +13,38 @@ from mediapipe.tasks.python.vision import (
     RunningMode,
 )
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "hand_landmarker.task")
-MODEL_URL  = (
+modelPath = os.path.join(os.path.dirname(__file__), "hand_landmarker.task")
+modelUrl  = (
     "https://storage.googleapis.com/mediapipe-models/"
     "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 )
-if not os.path.exists(MODEL_PATH):
+if not os.path.exists(modelPath):
     print("Downloading hand landmarker model (~5 MB) on first run...")
-    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    urllib.request.urlretrieve(modelUrl, modelPath)
     print("Model downloaded.\n")
 
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE    = 0
-SCREEN_W, SCREEN_H = pyautogui.size()
+screenW, screenH = pyautogui.size()
 
 # threshold tuning
-SMOOTHING          = 0.18
-PINCH_THRESHOLD    = 0.045
-DOUBLE_CLICK_GAP   = 0.45   # max seconds between two pinches for double click
-SCROLL_COOLDOWN    = 0.5    # seconds after leaving scroll mode before clicks re-enable
-SCROLL_SPEED       = 8      # max scroll amount per tick
-UP_THRESHOLD       = -0.05  # avg_v below this = scroll up
-DOWN_THRESHOLD     =  0.05  # avg_v above this = scroll down
-PALM_HOLD_TIME     = 1.5    
+smoothing        = 0.18
+pinchThreshold   = 0.045
+doubleClickGap   = 0.45   # max seconds between two pinches for double click
+scrollCooldown   = 0.5    # seconds after leaving scroll mode before clicks re-enable
+scrollSpeed      = 8      # max scroll amount per tick
+upThreshold      = -0.05  # avg_v below this = scroll up
+downThreshold    =  0.05  # avg_v above this = scroll down
+palmHoldTime     = 1.5    
 
 # landmark indices
-THUMB_TIP  = 4;  THUMB_IP   = 3
-INDEX_TIP  = 8;  INDEX_PIP  = 6
-MIDDLE_TIP = 12; MIDDLE_PIP = 10
-RING_TIP   = 16; RING_PIP   = 14
-PINKY_TIP  = 20; PINKY_PIP  = 18
+thumbTip  = 4;  thumbIp   = 3
+indexTip  = 8;  indexPip  = 6
+middleTip = 12; middlePip = 10
+ringTip   = 16; ringPip   = 14
+pinkyTip  = 20; pinkyPip  = 18
 
-HAND_CONNECTIONS = [
+handConnections = [
     (0,1),(1,2),(2,3),(3,4),
     (0,5),(5,6),(6,7),(7,8),
     (5,9),(9,10),(10,11),(11,12),
@@ -54,75 +54,75 @@ HAND_CONNECTIONS = [
 ]
 
 
-def fingers_up(lm, handedness="Right"):
+def fingersUp(lm, handedness="Right"):
     up = []
     if handedness == "Right":
-        up.append(lm[THUMB_TIP].x < lm[THUMB_IP].x)
+        up.append(lm[thumbTip].x < lm[thumbIp].x)
     else:
-        up.append(lm[THUMB_TIP].x > lm[THUMB_IP].x)
-    for tip, pip in [(INDEX_TIP, INDEX_PIP), (MIDDLE_TIP, MIDDLE_PIP),
-                     (RING_TIP,  RING_PIP),  (PINKY_TIP,  PINKY_PIP)]:
+        up.append(lm[thumbTip].x > lm[thumbIp].x)
+    for tip, pip in [(indexTip, indexPip), (middleTip, middlePip),
+                     (ringTip,  ringPip),  (pinkyTip,  pinkyPip)]:
         up.append(lm[tip].y < lm[pip].y)
     return up
 
 
-def finger_vertical(lm, tip_idx, pip_idx):
+def fingerVertical(lm, tipIdx, pipIdx):
     """Positive = tip below pip = curled down. Negative = tip above pip = extended up."""
-    return lm[tip_idx].y - lm[pip_idx].y
+    return lm[tipIdx].y - lm[pipIdx].y
 
 
 def dist(a, b):
     return np.hypot(a.x - b.x, a.y - b.y)
 
 
-def draw_skeleton(frame, lm_list, w, h):
-    pts = [(int(lm.x * w), int(lm.y * h)) for lm in lm_list]
-    for a, b in HAND_CONNECTIONS:
+def drawSkeleton(frame, lmList, w, h):
+    pts = [(int(lm.x * w), int(lm.y * h)) for lm in lmList]
+    for a, b in handConnections:
         cv2.line(frame, pts[a], pts[b], (0, 200, 150), 2)
     for i, (x, y) in enumerate(pts):
-        r = 6 if i in (THUMB_TIP, INDEX_TIP, MIDDLE_TIP, RING_TIP, PINKY_TIP) else 4
+        r = 6 if i in (thumbTip, indexTip, middleTip, ringTip, pinkyTip) else 4
         cv2.circle(frame, (x, y), r, (0, 255, 180), -1)
         cv2.circle(frame, (x, y), r, (0, 100, 80), 1)
 
 
-def draw_hud(frame, gesture_name, enabled, screen_pos):
+def drawHud(frame, gestureName, enabled, screenPos):
     h, w = frame.shape[:2]
     ov = frame.copy()
     cv2.rectangle(ov, (0, 0), (w, 48), (10, 10, 10), -1)
     cv2.addWeighted(ov, 0.6, frame, 0.4, 0, frame)
     colour = (0, 255, 180) if enabled else (0, 80, 255)
     label  = "ACTIVE" if enabled else "DISABLED"
-    cv2.putText(frame, f"  {label}  |  {gesture_name}",
+    cv2.putText(frame, f"  {label}  |  {gestureName}",
                 (10, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.75, colour, 2)
-    if screen_pos and enabled:
-        cx = int(screen_pos[0] / SCREEN_W * w)
-        cy = int(screen_pos[1] / SCREEN_H * h)
+    if screenPos and enabled:
+        cx = int(screenPos[0] / screenW * w)
+        cy = int(screenPos[1] / screenH * h)
         cv2.drawMarker(frame, (cx, cy), (0, 255, 180), cv2.MARKER_CROSS, 20, 2)
     ov2 = frame.copy()
     cv2.rectangle(ov2, (0, h - 30), (w, h), (10, 10, 10), -1)
     cv2.addWeighted(ov2, 0.55, frame, 0.45, 0, frame)
-    cv2.putText(frame, f"  Q: quit   |   open palm (hold {PALM_HOLD_TIME}s): enable/disable",
+    cv2.putText(frame, f"  Q: quit   |   open palm (hold {palmHoldTime}s): enable/disable",
                 (10, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (160, 160, 160), 1)
     return frame
 
 
 def run():
-    prev_x, prev_y      = 0, 0
-    last_pinch_time     = 0
-    scroll_exit_time    = 0
-    was_pinching        = False
-    gesture_enabled     = True
-    in_scroll_mode      = False
+    prevX, prevY        = 0, 0
+    lastPinchTime       = 0
+    scrollExitTime      = 0
+    wasPinching         = False
+    gestureEnabled      = True
+    inScrollMode        = False
     
     # Timer variables for palm hold
-    is_palm_holding     = False
-    palm_start_time     = 0
+    isPalmHolding       = False
+    palmStartTime       = 0
     
-    gesture_name        = "—"
-    screen_pos          = None
+    gestureName         = "—"
+    screenPos           = None
 
     options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=MODEL_PATH),
+        base_options=BaseOptions(model_asset_path=modelPath),
         running_mode=RunningMode.VIDEO,
         num_hands=1,
         min_hand_detection_confidence=0.7,
@@ -136,7 +136,7 @@ def run():
         return
 
     with HandLandmarker.create_from_options(options) as landmarker:
-        frame_idx = 0
+        frameIdx = 0
 
         while True:
             ret, frame = cap.read()
@@ -146,140 +146,140 @@ def run():
             frame    = cv2.flip(frame, 1)
             h, w     = frame.shape[:2]
             rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            mpImage  = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             timestamp = int(cap.get(cv2.CAP_PROP_POS_MSEC))
             if timestamp == 0:
-                timestamp = frame_idx * 33
-            frame_idx += 1
+                timestamp = frameIdx * 33
+            frameIdx += 1
 
-            result = landmarker.detect_for_video(mp_image, timestamp)
+            result = landmarker.detect_for_video(mpImage, timestamp)
 
             if result.hand_landmarks:
-                lm         = result.hand_landmarks[0]
-                hand_label = result.handedness[0][0].category_name
+                lm        = result.hand_landmarks[0]
+                handLabel = result.handedness[0][0].category_name
 
-                draw_skeleton(frame, lm, w, h)
+                drawSkeleton(frame, lm, w, h)
 
-                up = fingers_up(lm, hand_label)
+                up = fingersUp(lm, handLabel)
                 thumb, index, middle, ring, pinky = up
-                now = time.time()
-                pinch_d  = dist(lm[THUMB_TIP], lm[INDEX_TIP])
+                now     = time.time()
+                pinchD  = dist(lm[thumbTip], lm[indexTip])
 
                 # open palm
-                if index and middle and ring and pinky and (pinch_d > PINCH_THRESHOLD * 2):
-                    if not is_palm_holding:
-                        is_palm_holding = True
-                        palm_start_time = now
+                if index and middle and ring and pinky and (pinchD > pinchThreshold * 2):
+                    if not isPalmHolding:
+                        isPalmHolding = True
+                        palmStartTime = now
                     
-                    hold_duration = now - palm_start_time
-                    gesture_name = (
-                        f"Hold to {'DISABLE' if gesture_enabled else 'ENABLE'} "
-                        f"({hold_duration:.1f}s / {PALM_HOLD_TIME:.1f}s)"
+                    holdDuration = now - palmStartTime
+                    gestureName = (
+                        f"Hold to {'DISABLE' if gestureEnabled else 'ENABLE'} "
+                        f"({holdDuration:.1f}s / {palmHoldTime:.1f}s)"
                     )
                     
-                    if hold_duration >= PALM_HOLD_TIME:
-                        gesture_enabled = not gesture_enabled
-                        is_palm_holding = False
-                        gesture_name    = "ENABLED" if gesture_enabled else "DISABLED"
+                    if holdDuration >= palmHoldTime:
+                        gestureEnabled = not gestureEnabled
+                        isPalmHolding  = False
+                        gestureName    = "ENABLED" if gestureEnabled else "DISABLED"
                     
-                        frame = draw_hud(frame, gesture_name, gesture_enabled, screen_pos)
+                        frame = drawHud(frame, gestureName, gestureEnabled, screenPos)
                         cv2.imshow("Hand Gesture Control  —  press Q to quit", frame)
                         cv2.waitKey(1)
                         
                         time.sleep(1.0) # 1 second hard debounce so it doesn't instantly toggle back
                         now = time.time() # update time after sleep
                 else:
-                    is_palm_holding = False
+                    isPalmHolding = False
 
                 # skip all actions if disabled
-                if not gesture_enabled:
-                    frame = draw_hud(frame, f"DISABLED — hold palm {PALM_HOLD_TIME}s to re-enable", gesture_enabled, screen_pos)
+                if not gestureEnabled:
+                    frame = drawHud(frame, f"DISABLED — hold palm {palmHoldTime}s to re-enable", gestureEnabled, screenPos)
                     cv2.imshow("Hand Gesture Control  —  press Q to quit", frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
                     continue
 
-                # cursor position (always computed) 
-                ix, iy   = lm[INDEX_TIP].x, lm[INDEX_TIP].y
+                # cursor position (always computed)
+                ix, iy   = lm[indexTip].x, lm[indexTip].y
                 margin   = 0.15
-                ix_m     = np.clip((ix - margin) / (1 - 2 * margin), 0, 1)
-                iy_m     = np.clip((iy - margin) / (1 - 2 * margin), 0, 1)
-                target_x = int(ix_m * SCREEN_W)
-                target_y = int(iy_m * SCREEN_H)
-                smooth_x = int(prev_x + SMOOTHING * (target_x - prev_x))
-                smooth_y = int(prev_y + SMOOTHING * (target_y - prev_y))
-                prev_x, prev_y = smooth_x, smooth_y
-                screen_pos     = (smooth_x, smooth_y)
+                ixM      = np.clip((ix - margin) / (1 - 2 * margin), 0, 1)
+                iyM      = np.clip((iy - margin) / (1 - 2 * margin), 0, 1)
+                targetX  = int(ixM * screenW)
+                targetY  = int(iyM * screenH)
+                smoothX  = int(prevX + smoothing * (targetX - prevX))
+                smoothY  = int(prevY + smoothing * (targetY - prevY))
+                prevX, prevY = smoothX, smoothY
+                screenPos    = (smoothX, smoothY)
 
-                # scroll mode state machine 
-                prev_scroll_mode = in_scroll_mode
+                # scroll mode state machine
+                prevScrollMode = inScrollMode
                 
                 # Check if hand is in a general "two-finger" posture
-                if not ring and not pinky and (pinch_d > PINCH_THRESHOLD) and not is_palm_holding:
+                if not ring and not pinky and (pinchD > pinchThreshold) and not isPalmHolding:
                     if index and middle:
-                        in_scroll_mode = True   # Engage scroll gear
+                        inScrollMode = True   # Engage scroll gear
                     elif not index and not middle:
-                        pass                    # Keep current state (allows you to bend fingers to scroll)
+                        pass                  # Keep current state (allows you to bend fingers to scroll)
                     else:
-                        in_scroll_mode = False  # One up, one down -> pointing, disengage
+                        inScrollMode = False  # One up, one down -> pointing, disengage
                 else:
-                    in_scroll_mode = False
+                    inScrollMode = False
 
-                if prev_scroll_mode and not in_scroll_mode:
-                    scroll_exit_time = now
+                if prevScrollMode and not inScrollMode:
+                    scrollExitTime = now
 
-                if in_scroll_mode:
-                    index_v  = finger_vertical(lm, INDEX_TIP,  INDEX_PIP)
-                    middle_v = finger_vertical(lm, MIDDLE_TIP, MIDDLE_PIP)
-                    avg_v    = np.clip((index_v + middle_v) / 2, -0.25, 0.25)
+                if inScrollMode:
+                    indexV  = fingerVertical(lm, indexTip,  indexPip)
+                    middleV = fingerVertical(lm, middleTip, middlePip)
+                    avgV    = np.clip((indexV + middleV) / 2, -0.25, 0.25)
 
-                    if avg_v < UP_THRESHOLD:
-                        amount = int(np.interp(abs(avg_v), [0.05, 0.25], [3, SCROLL_SPEED]))
+                    if avgV < upThreshold:
+                        amount = int(np.interp(abs(avgV), [0.05, 0.25], [3, scrollSpeed]))
                         pyautogui.scroll(amount)
-                        if not is_palm_holding: gesture_name = "Two Fingers → Scroll Up"
-                    elif avg_v > DOWN_THRESHOLD:
-                        amount = int(np.interp(avg_v, [0.05, 0.25], [3, SCROLL_SPEED]))
+                        if not isPalmHolding: gestureName = "Two Fingers → Scroll Up"
+                    elif avgV > downThreshold:
+                        amount = int(np.interp(avgV, [0.05, 0.25], [3, scrollSpeed]))
                         pyautogui.scroll(-amount)
-                        if not is_palm_holding: gesture_name = "Two Fingers → Scroll Down"
+                        if not isPalmHolding: gestureName = "Two Fingers → Scroll Down"
                     else:
-                        if not is_palm_holding: gesture_name = "Two Fingers → Neutral"
+                        if not isPalmHolding: gestureName = "Two Fingers → Neutral"
 
                 else:
                     # pinch: click / double click
-                    post_scroll_blocked = (now - scroll_exit_time) < SCROLL_COOLDOWN
+                    postScrollBlocked = (now - scrollExitTime) < scrollCooldown
 
-                    if pinch_d < PINCH_THRESHOLD and not is_palm_holding:
-                        if not was_pinching and not post_scroll_blocked:
-                            if (now - last_pinch_time) < DOUBLE_CLICK_GAP:
-                                pyautogui.doubleClick(smooth_x, smooth_y)
-                                gesture_name    = "Double Pinch — Double Click"
-                                last_pinch_time = 0
+                    if pinchD < pinchThreshold and not isPalmHolding:
+                        if not wasPinching and not postScrollBlocked:
+                            if (now - lastPinchTime) < doubleClickGap:
+                                pyautogui.doubleClick(smoothX, smoothY)
+                                gestureName   = "Double Pinch — Double Click"
+                                lastPinchTime = 0
                             else:
-                                pyautogui.click(smooth_x, smooth_y)
-                                gesture_name    = "Pinch — Click"
-                                last_pinch_time = now
-                            was_pinching = True
-                        elif post_scroll_blocked:
-                            gesture_name = "Pinch (cooldown...)"
+                                pyautogui.click(smoothX, smoothY)
+                                gestureName   = "Pinch — Click"
+                                lastPinchTime = now
+                            wasPinching = True
+                        elif postScrollBlocked:
+                            gestureName = "Pinch (cooldown...)"
                         else:
-                            gesture_name = "Pinch — Click"
+                            gestureName = "Pinch — Click"
                     else:
-                        was_pinching = False
+                        wasPinching = False
 
                     # index only: move cursor
-                    if index and not middle and not ring and not pinky and not is_palm_holding:
-                        gesture_name = "Index — Move"
-                        pyautogui.moveTo(smooth_x, smooth_y, duration=0)
+                    if index and not middle and not ring and not pinky and not isPalmHolding:
+                        gestureName = "Index — Move"
+                        pyautogui.moveTo(smoothX, smoothY, duration=0)
 
             else:
-                if in_scroll_mode:
-                    scroll_exit_time = time.time()
-                in_scroll_mode  = False
-                is_palm_holding = False
-                gesture_name    = "No hand detected"
-                screen_pos      = None
+                if inScrollMode:
+                    scrollExitTime = time.time()
+                inScrollMode  = False
+                isPalmHolding = False
+                gestureName   = "No hand detected"
+                screenPos     = None
 
-            frame = draw_hud(frame, gesture_name, gesture_enabled, screen_pos)
+            frame = drawHud(frame, gestureName, gestureEnabled, screenPos)
             cv2.imshow("Hand Gesture Control  —  press Q to quit", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
