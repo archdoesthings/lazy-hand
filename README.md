@@ -31,7 +31,7 @@ Ideal for hands-free interaction while eating, or relaxing!
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/sgamurth/lazy-hand.git
+git clone https://github.com/archdoesthings/lazy-hand.git
 cd lazy-hand
 ```
 
